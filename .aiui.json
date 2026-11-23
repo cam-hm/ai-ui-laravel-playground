@@ -49,5 +49,11 @@
     "path": "/login",
     "email": "test@example.com",
     "password": "password"
+  },
+  "preview": {
+    "setup": [
+      "echo \"<?php return ['proxies' => '127.0.0.1'];\" > config/trustedproxy.php",
+      "sed -i -e \"s#^APP_URL=.*#APP_URL=$AIUI_PREVIEW_URL#\" -e 's#^APP_DEBUG=.*#APP_DEBUG=false#' .env"
+    ]
   }
 }
