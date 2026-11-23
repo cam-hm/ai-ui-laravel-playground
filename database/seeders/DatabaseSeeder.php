@@ -17,9 +17,19 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
-        User::factory()->create([
+        $user = User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+
+        foreach ([
+            [0, 'breakfast', 'Overnight oats', 'Add berries'],
+            [0, 'dinner', 'Veggie stir-fry', null],
+            [2, 'lunch', 'Chicken Caesar salad', 'Dressing on the side'],
+            [4, 'dinner', 'Homemade pizza', 'Family pizza night'],
+            [6, 'breakfast', 'Pancakes', null],
+        ] as [$day, $meal, $dish, $notes]) {
+            $user->mealPlans()->create(compact('day', 'meal', 'dish', 'notes'));
+        }
     }
 }
