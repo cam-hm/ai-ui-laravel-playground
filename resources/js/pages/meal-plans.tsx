@@ -69,10 +69,10 @@ export default function MealPlans({
                     </p>
                 </div>
 
-                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+                <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
                     <section
                         aria-labelledby="entries-heading"
-                        className="order-2 lg:order-1"
+                        className="order-2 min-w-0 lg:order-1"
                     >
                         <h2 id="entries-heading" className="sr-only">
                             Planned meals
@@ -95,7 +95,7 @@ export default function MealPlans({
                                 </Button>
                             </div>
                         ) : (
-                            <ul className="divide-y rounded-xl border">
+                            <ul className="divide-y overflow-hidden rounded-xl border">
                                 {entries.map((entry) => (
                                     <li
                                         key={entry.id}
@@ -113,11 +113,11 @@ export default function MealPlans({
                                                     {entry.meal}
                                                 </Badge>
                                             </div>
-                                            <p className="break-words">
+                                            <p className="[overflow-wrap:anywhere]">
                                                 {entry.dish}
                                             </p>
                                             {entry.notes && (
-                                                <p className="text-sm break-words text-muted-foreground">
+                                                <p className="text-sm [overflow-wrap:anywhere] text-muted-foreground">
                                                     {entry.notes}
                                                 </p>
                                             )}
