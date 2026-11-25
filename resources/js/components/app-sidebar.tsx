@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import {
     BookOpen,
     FolderGit2,
+    ChefHat,
     LayoutGrid,
     UtensilsCrossed,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as mealPlans } from '@/routes/meal-plans';
+import { index as recipes } from '@/routes/recipes';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -32,6 +34,11 @@ const mainNavItems: NavItem[] = [
         title: 'Meal plans',
         href: mealPlans(),
         icon: UtensilsCrossed,
+    },
+    {
+        title: 'Recipes',
+        href: recipes(),
+        icon: ChefHat,
     },
 ];
 
