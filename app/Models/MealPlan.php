@@ -7,6 +7,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property int $day
+ * @property string $meal
+ * @property string $dish
+ * @property string|null $notes
+ */
 class MealPlan extends Model
 {
     /** @use HasFactory<MealPlanFactory> */
@@ -18,6 +26,7 @@ class MealPlan extends Model
 
     protected $fillable = ['user_id', 'day', 'meal', 'dish', 'notes'];
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

@@ -15,11 +15,8 @@ class MealPlanController extends Controller
     {
         $entries = $request->user()->mealPlans()
             ->get()
-            ->sortBy([
-                ['day', 'asc'],
-                fn ($a, $b) => array_search($a->meal, MealPlan::MEALS) <=> array_search($b->meal, MealPlan::MEALS),
-                ['id', 'asc'],
-            ])
+            ->sort(fn (MealPlan $a, MealPlan $b) => [$a->day, array_search($a->meal, MealPlan::MEALS), $a->id]
+                <=> [$b->day, array_search($b->meal, MealPlan::MEALS), $b->id])
             ->values()
             ->map(fn (MealPlan $e) => [
                 'id' => $e->id,
