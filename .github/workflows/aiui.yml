@@ -1,0 +1,119 @@
+# aiui — run the AI UI Developer on issues labeled `aiui`.
+#
+# Install in a TARGET repo as .github/workflows/aiui.yml. The GitHub Actions runner replaces the
+# developer Mac as the host: it checks out the harness, logs in to Docker, and runs `aiui run`, which
+# provisions a Docker Cloud sandbox where the agent works and opens a draft PR. Results go back to the
+# issue as a comment and a label (aiui:done / aiui:failed). The Mac is not involved.
+#
+# Required in the target repo:
+#   secret   DOCKER_PAT                Docker personal access token (read-only is enough for sbx login)
+#   variable DOCKER_USER               Docker ID that owns the token
+#   secret   AIUI_HARNESS_DEPLOY_KEY   private half of a read-only deploy key on the harness repo
+# The Anthropic key stays in the Docker Cloud secret store (`sbx --cloud secret set anthropic`) and never
+# passes through this workflow. The sandbox has no GitHub access: this job ships the repo into it as a
+# git bundle, then verifies the agent's result (branch, base, no .github/ or .aiui.json changes), pushes the
+# branch and opens the draft PR itself with the workflow token. PRs opened with GITHUB_TOKEN do not trigger
+# other workflows; use a GitHub App token if the repo needs CI on aiui PRs.
+#
+# Security: the issue title/body are untrusted input. They are only ever read through `gh` into a
+# file, never interpolated into a `run:` script.
+
+name: aiui
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write        # push agent/<id> branches and the aiui-artifacts screenshots branch
+  issues: write
+  pull-requests: write   # open the draft PR
+
+concurrency:
+  group: aiui-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.event.label.name == 'aiui'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      ISSUE: ${{ github.event.issue.number }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      SBX_VERSION: v0.54.0
+      HARNESS_REPO: cam-hm/ai-ui-developer
+      HARNESS_REF: main
+    steps:
+      - name: Mark the issue as picked up
+        run: |
+          for l in "aiui:running FBCA04" "aiui:done 0E8A16" "aiui:failed B60205"; do
+            set -- $l; gh label create "$1" --color "$2" -R "$REPO" 2>/dev/null || true
+          done
+          gh issue edit "$ISSUE" -R "$REPO" --add-label aiui:running --remove-label aiui
+          gh issue comment "$ISSUE" -R "$REPO" --body "🤖 aiui picked this up. Progress: $RUN_URL"
+
+      - name: Check out the harness
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.HARNESS_REPO }}
+          ref: ${{ env.HARNESS_REF }}
+          ssh-key: ${{ secrets.AIUI_HARNESS_DEPLOY_KEY }}
+          path: harness
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Docker Sandboxes CLI
+        # Only the static `sbx` binary from the release tarball: cloud use needs no local runtime, and the
+        # .deb pulls desktop deps through apt (~34s, and a stale runner index once 404'd on them).
+        run: |
+          curl -fsSL "https://github.com/docker/sbx-releases/releases/download/${SBX_VERSION}/DockerSandboxes-linux-amd64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" docker-sbx/sbx
+          echo "$RUNNER_TEMP/docker-sbx" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/docker-sbx/sbx" version
+
+      - name: Log in to Docker
+        env:
+          DOCKER_PAT: ${{ secrets.DOCKER_PAT }}
+          DOCKER_USER: ${{ vars.DOCKER_USER }}
+        run: printf '%s' "$DOCKER_PAT" | sbx login --username "$DOCKER_USER" --password-stdin
+
+      - name: Let git use the workflow token (host clones, pushes the verified branch)
+        run: gh auth setup-git
+
+      - name: Write the task from the issue
+        run: gh issue view "$ISSUE" -R "$REPO" --json title,body --jq '"# \(.title)\n\n\(.body)"' > "$RUNNER_TEMP/task.md"
+
+      - name: Run aiui
+        id: aiui
+        working-directory: harness
+        # --repo: this repository is the target, whatever the harness config defaults to. Its .aiui.json
+        # (if any) says how to set up, build, test and serve it.
+        run: ./bin/aiui run "$RUNNER_TEMP/task.md" --issue "$ISSUE" --repo "$REPO"
+
+      - name: Keep run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aiui-issue-${{ github.event.issue.number }}
+          path: harness/runs/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Report back on the issue
+        if: always()
+        working-directory: harness
+        run: |
+          if ls runs/*/run.json >/dev/null 2>&1; then
+            ./bin/aiui summary last --markdown > "$RUNNER_TEMP/comment.md"
+          else
+            printf '### aiui result\n\n❌ **Failed before a run started.**\n' > "$RUNNER_TEMP/comment.md"
+          fi
+          printf '\n\nLogs: %s\n' "$RUN_URL" >> "$RUNNER_TEMP/comment.md"
+          gh issue comment "$ISSUE" -R "$REPO" --body-file "$RUNNER_TEMP/comment.md"
+          if [ "${{ steps.aiui.outcome }}" = success ]; then label=aiui:done; else label=aiui:failed; fi
+          gh issue edit "$ISSUE" -R "$REPO" --add-label "$label" --remove-label aiui:running
