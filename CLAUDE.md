@@ -4,6 +4,7 @@ Demo app for the aiui harness: Laravel 13 + Inertia 3 + React 19 (TypeScript, Ta
 with Fortify authentication and SQLite. Built from the Laravel React starter kit.
 
 ## Conventions
+
 - Routes: `routes/web.php`. Pages for signed-in users go inside the `auth` + `verified` middleware group.
   Use controllers in `app/Http/Controllers` and Form Requests for validation; authorize access to records
   that belong to a user (a user must never see or change another user's data).
@@ -20,6 +21,7 @@ with Fortify authentication and SQLite. Built from the Laravel React starter kit
   guests being redirected, validation, the happy path, and access to other users' records.
 
 ## Commands
+
 - First setup: `composer setup`
 - Build: `npm run build` · Types: `npm run types:check` · Tests: `php artisan test`
 - PHP formatting: `vendor/bin/pint`

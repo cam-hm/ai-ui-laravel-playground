@@ -1,59 +1,56 @@
 {
-  "$comment": "Settings for the aiui harness (github.com/cam-hm/ai-ui-developer): how its sandbox sets up, builds, tests and serves this app. The agent may not change this file.",
-  "stack": "Laravel 13 + Inertia 3 + React 19 app (TypeScript, Tailwind CSS v4, shadcn/ui), Fortify authentication, SQLite",
-  "apt": [
-    "php8.4-cli",
-    "php8.4-mbstring",
-    "php8.4-xml",
-    "php8.4-curl",
-    "php8.4-sqlite3",
-    "php8.4-intl",
-    "php8.4-zip",
-    "php8.4-bcmath",
-    "composer",
-    "unzip"
-  ],
-  "network": [
-    "repo.packagist.org:443",
-    "packagist.org:443",
-    "api.github.com:443",
-    "codeload.github.com:443",
-    "fonts.bunny.net:443"
-  ],
-  "setup": [
-    "composer install --no-interaction --prefer-dist --no-progress",
-    "cp .env.example .env && sed -i 's#^APP_URL=.*#APP_URL=http://127.0.0.1:8000#' .env",
-    "php artisan key:generate --no-interaction",
-    "touch database/database.sqlite",
-    "npm ci --no-audit --no-fund"
-  ],
-  "build": "php artisan migrate:fresh --seed --force --no-interaction && npm run build",
-  "tests": [
-    "php artisan test",
-    "npm run types:check"
-  ],
-  "serve": {
-    "command": "PHP_CLI_SERVER_WORKERS=4 php artisan serve --host 127.0.0.1 --port 8000 --no-reload",
-    "url": "http://127.0.0.1:8000",
-    "ready": "/up"
-  },
-  "pages": [
-    "/",
-    "/login",
-    {
-      "path": "/dashboard",
-      "auth": true
-    }
-  ],
-  "login": {
-    "path": "/login",
-    "email": "test@example.com",
-    "password": "password"
-  },
-  "preview": {
+    "$comment": "Settings for the aiui harness (github.com/cam-hm/ai-ui-developer): how its sandbox sets up, builds, tests and serves this app. The agent may not change this file.",
+    "stack": "Laravel 13 + Inertia 3 + React 19 app (TypeScript, Tailwind CSS v4, shadcn/ui), Fortify authentication, SQLite",
+    "apt": [
+        "php8.4-cli",
+        "php8.4-mbstring",
+        "php8.4-xml",
+        "php8.4-curl",
+        "php8.4-sqlite3",
+        "php8.4-intl",
+        "php8.4-zip",
+        "php8.4-bcmath",
+        "composer",
+        "unzip"
+    ],
+    "network": [
+        "repo.packagist.org:443",
+        "packagist.org:443",
+        "api.github.com:443",
+        "codeload.github.com:443",
+        "fonts.bunny.net:443"
+    ],
     "setup": [
-      "echo \"<?php return ['proxies' => '127.0.0.1'];\" > config/trustedproxy.php",
-      "sed -i -e \"s#^APP_URL=.*#APP_URL=$AIUI_PREVIEW_URL#\" -e 's#^APP_DEBUG=.*#APP_DEBUG=false#' .env"
-    ]
-  }
+        "composer install --no-interaction --prefer-dist --no-progress",
+        "cp .env.example .env && sed -i 's#^APP_URL=.*#APP_URL=http://127.0.0.1:8000#' .env",
+        "php artisan key:generate --no-interaction",
+        "touch database/database.sqlite",
+        "npm ci --no-audit --no-fund"
+    ],
+    "build": "php artisan migrate:fresh --seed --force --no-interaction && npm run build",
+    "tests": ["php artisan test", "npm run types:check"],
+    "serve": {
+        "command": "PHP_CLI_SERVER_WORKERS=4 php artisan serve --host 127.0.0.1 --port 8000 --no-reload",
+        "url": "http://127.0.0.1:8000",
+        "ready": "/up"
+    },
+    "pages": [
+        "/",
+        "/login",
+        {
+            "path": "/dashboard",
+            "auth": true
+        }
+    ],
+    "login": {
+        "path": "/login",
+        "email": "test@example.com",
+        "password": "password"
+    },
+    "preview": {
+        "setup": [
+            "echo \"<?php return ['proxies' => '127.0.0.1'];\" > config/trustedproxy.php",
+            "sed -i -e \"s#^APP_URL=.*#APP_URL=$AIUI_PREVIEW_URL#\" -e 's#^APP_DEBUG=.*#APP_DEBUG=false#' .env"
+        ]
+    }
 }
