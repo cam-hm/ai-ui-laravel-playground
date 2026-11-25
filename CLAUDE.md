@@ -24,4 +24,7 @@ with Fortify authentication and SQLite. Built from the Laravel React starter kit
 
 - First setup: `composer setup`
 - Build: `npm run build` · Types: `npm run types:check` · Tests: `php artisan test`
-- PHP formatting: `vendor/bin/pint`
+- Every check CI runs (`composer ci:check`) must pass before you finish: `npm run check` (format + lint; fix
+  with `npm run check:fix`), `npm run types:check`, `vendor/bin/pint --test` (fix with `vendor/bin/pint`),
+  `vendor/bin/phpstan analyse`, `php artisan test`. Give Eloquent relations their generic types (for example
+  `/** @return HasMany<MealPlan, $this> */`) and arrays their value types, as PHPStan requires.

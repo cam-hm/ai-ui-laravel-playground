@@ -28,7 +28,13 @@
         "npm ci --no-audit --no-fund"
     ],
     "build": "php artisan migrate:fresh --seed --force --no-interaction && npm run build",
-    "tests": ["php artisan test", "npm run types:check"],
+    "tests": [
+        "npm run check",
+        "npm run types:check",
+        "vendor/bin/pint --parallel --test",
+        "vendor/bin/phpstan analyse --no-progress",
+        "php artisan test"
+    ],
     "serve": {
         "command": "PHP_CLI_SERVER_WORKERS=4 php artisan serve --host 127.0.0.1 --port 8000 --no-reload",
         "url": "http://127.0.0.1:8000",
@@ -39,6 +45,10 @@
         "/login",
         {
             "path": "/dashboard",
+            "auth": true
+        },
+        {
+            "path": "/meal-plans",
             "auth": true
         }
     ],
