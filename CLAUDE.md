@@ -9,8 +9,9 @@ with Fortify authentication and SQLite. Built from the Laravel React starter kit
   Use controllers in `app/Http/Controllers` and Form Requests for validation; authorize access to records
   that belong to a user (a user must never see or change another user's data).
 - Data: migration + Eloquent model + factory for every new table. When a new page would be empty for the
-  seeded account, add demo data for it in `database/seeders/DatabaseSeeder.php`. The seeded account
-  `test@example.com` / `password` must keep working.
+  seeded account, add demo data for it in `database/seeders/DatabaseSeeder.php`. The seeded accounts
+  `test@example.com` / `password` and `other@example.com` / `password` must keep working; give each its own data
+  so per-user rules can be checked.
 - Pages: Inertia pages in `resources/js/pages`. Signed-in pages get the app layout automatically and set
   `Page.layout = { breadcrumbs: [...] }` (see `pages/dashboard.tsx`). Add main navigation entries to
   `mainNavItems` in `resources/js/components/app-sidebar.tsx`.

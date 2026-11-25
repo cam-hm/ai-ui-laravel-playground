@@ -22,8 +22,9 @@
     ],
     "setup": [
         "composer install --no-interaction --prefer-dist --no-progress",
-        "cp .env.example .env && sed -i 's#^APP_URL=.*#APP_URL=http://127.0.0.1:8000#' .env",
+        "cp .env.example .env && sed -i -e 's#^APP_URL=.*#APP_URL=http://127.0.0.1:8000#' -e 's#^QUEUE_CONNECTION=.*#QUEUE_CONNECTION=sync#' .env",
         "php artisan key:generate --no-interaction",
+        "php artisan storage:link --no-interaction",
         "touch database/database.sqlite",
         "npm ci --no-audit --no-fund"
     ],
@@ -55,7 +56,13 @@
     "login": {
         "path": "/login",
         "email": "test@example.com",
-        "password": "password"
+        "password": "password",
+        "others": [
+            {
+                "email": "other@example.com",
+                "password": "password"
+            }
+        ]
     },
     "preview": {
         "setup": [

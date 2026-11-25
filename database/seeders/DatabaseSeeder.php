@@ -31,5 +31,18 @@ class DatabaseSeeder extends Seeder
         ] as [$day, $meal, $dish, $notes]) {
             $user->mealPlans()->create(compact('day', 'meal', 'dish', 'notes'));
         }
+
+        // A second account with its own data, to check that users only see their own.
+        $other = User::factory()->create([
+            'name' => 'Other User',
+            'email' => 'other@example.com',
+        ]);
+
+        foreach ([
+            [1, 'lunch', 'Tomato soup', null],
+            [3, 'dinner', 'Grilled salmon', 'With lemon'],
+        ] as [$day, $meal, $dish, $notes]) {
+            $other->mealPlans()->create(compact('day', 'meal', 'dish', 'notes'));
+        }
     }
 }

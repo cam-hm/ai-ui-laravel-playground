@@ -1,59 +1,79 @@
-# aiui — run the AI UI Developer on issues labeled `aiui`.
+# aiui — run the AI UI Developer on issues labeled `aiui`, and preview its pull requests.
 #
 # Install in a TARGET repo as .github/workflows/aiui.yml. The GitHub Actions runner replaces the
 # developer Mac as the host: it checks out the harness, logs in to Docker, and runs `aiui run`, which
 # provisions a Docker Cloud sandbox where the agent works and opens a draft PR. Results go back to the
 # issue as a comment and a label (aiui:done / aiui:failed). The Mac is not involved.
 #
+# Previews: after opening the PR, the job starts a preview of it (the app on a public HTTPS URL behind
+# HTTP Basic auth, deleted after its TTL, 2 h by default) and comments the URL on the PR. Commenting
+# `/preview` on a PR (owner, members, collaborators only) starts a new one. The Basic auth password is the
+# AIUI_PREVIEW_PASSWORD secret, so the URL can be posted without it; without that secret no preview starts.
+#
 # Required in the target repo:
 #   secret   DOCKER_PAT                Docker personal access token (read-only is enough for sbx login)
 #   variable DOCKER_USER               Docker ID that owns the token
 #   secret   AIUI_HARNESS_DEPLOY_KEY   private half of a read-only deploy key on the harness repo
+# Optional:
+#   secret   AIUI_PREVIEW_PASSWORD     Basic auth password for previews (at least 16 characters)
 # The Anthropic key stays in the Docker Cloud secret store (`sbx --cloud secret set anthropic`) and never
 # passes through this workflow. The sandbox has no GitHub access: this job ships the repo into it as a
 # git bundle, then verifies the agent's result (branch, base, no .github/ or .aiui.json changes), pushes the
 # branch and opens the draft PR itself with the workflow token. PRs opened with GITHUB_TOKEN do not trigger
 # other workflows; use a GitHub App token if the repo needs CI on aiui PRs.
 #
-# Security: the issue title/body are untrusted input. They are only ever read through `gh` into a
-# file, never interpolated into a `run:` script.
+# Security: the issue title/body, comments and branch names are untrusted input. They are only ever read
+# through `gh` into files or shell variables, never interpolated into a `run:` script.
 
 name: aiui
 
 on:
   issues:
     types: [labeled]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write        # push agent/<id> branches and the aiui-artifacts screenshots branch
   issues: write
-  pull-requests: write   # open the draft PR
+  pull-requests: write   # open the draft PR, comment previews
 
 concurrency:
-  group: aiui-issue-${{ github.event.issue.number }}
+  group: aiui-${{ github.event.issue.number }}
   cancel-in-progress: false
 
 jobs:
-  run:
-    if: github.event.label.name == 'aiui'
+  aiui:
+    if: >-
+      (github.event_name == 'issues' && github.event.label.name == 'aiui') ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       startsWith(github.event.comment.body, '/preview') &&
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-24.04
     timeout-minutes: 100
     env:
       GH_TOKEN: ${{ github.token }}
+      EVENT: ${{ github.event_name }}
       REPO: ${{ github.repository }}
-      ISSUE: ${{ github.event.issue.number }}
+      ISSUE: ${{ github.event.issue.number }}   # the PR's number for /preview comments
+      COMMENT_ID: ${{ github.event.comment.id }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       SBX_VERSION: v0.54.0
       HARNESS_REPO: cam-hm/ai-ui-developer
       HARNESS_REF: main
     steps:
       - name: Mark the issue as picked up
+        if: github.event_name == 'issues'
         run: |
           for l in "aiui:running FBCA04" "aiui:done 0E8A16" "aiui:failed B60205"; do
             set -- $l; gh label create "$1" --color "$2" -R "$REPO" 2>/dev/null || true
           done
           gh issue edit "$ISSUE" -R "$REPO" --add-label aiui:running --remove-label aiui
           gh issue comment "$ISSUE" -R "$REPO" --body "🤖 aiui picked this up. Progress: $RUN_URL"
+
+      - name: Acknowledge /preview
+        if: github.event_name == 'issue_comment'
+        run: gh api -X POST "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content=eyes >/dev/null
 
       - name: Check out the harness
         uses: actions/checkout@v4
@@ -86,17 +106,19 @@ jobs:
         run: gh auth setup-git
 
       - name: Write the task from the issue
+        if: github.event_name == 'issues'
         run: gh issue view "$ISSUE" -R "$REPO" --json title,body --jq '"# \(.title)\n\n\(.body)"' > "$RUNNER_TEMP/task.md"
 
       - name: Run aiui
         id: aiui
+        if: github.event_name == 'issues'
         working-directory: harness
         # --repo: this repository is the target, whatever the harness config defaults to. Its .aiui.json
         # (if any) says how to set up, build, test and serve it.
         run: ./bin/aiui run "$RUNNER_TEMP/task.md" --issue "$ISSUE" --repo "$REPO"
 
       - name: Keep run artifacts
-        if: always()
+        if: always() && github.event_name == 'issues'
         uses: actions/upload-artifact@v4
         with:
           name: aiui-issue-${{ github.event.issue.number }}
@@ -105,7 +127,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Report back on the issue
-        if: always()
+        if: always() && github.event_name == 'issues'
         working-directory: harness
         run: |
           if ls runs/*/run.json >/dev/null 2>&1; then
@@ -117,3 +139,34 @@ jobs:
           gh issue comment "$ISSUE" -R "$REPO" --body-file "$RUNNER_TEMP/comment.md"
           if [ "${{ steps.aiui.outcome }}" = success ]; then label=aiui:done; else label=aiui:failed; fi
           gh issue edit "$ISSUE" -R "$REPO" --add-label "$label" --remove-label aiui:running
+
+      - name: Preview the PR
+        # After a successful run (its new PR), or on /preview (that PR). A failed preview does not change the
+        # issue's result: the PR exists either way.
+        if: github.event_name == 'issue_comment' || steps.aiui.outcome == 'success'
+        continue-on-error: ${{ github.event_name == 'issues' }}
+        working-directory: harness
+        env:
+          AIUI_PREVIEW_PASS: ${{ secrets.AIUI_PREVIEW_PASSWORD }}
+        run: |
+          if [ "$EVENT" = issues ]; then
+            info=$(./bin/aiui summary last --json)
+            pr=$(jq -r '.prUrl // empty' <<<"$info"); branch=$(jq -r '.branch // empty' <<<"$info")
+          else
+            pr=$(gh pr view "$ISSUE" -R "$REPO" --json url -q .url)
+            if [ "$(gh pr view "$ISSUE" -R "$REPO" --json isCrossRepository -q .isCrossRepository)" != false ]; then
+              gh pr comment "$pr" --body "Preview works only for branches of this repository."; exit 1
+            fi
+            branch=$(gh pr view "$ISSUE" -R "$REPO" --json headRefName -q .headRefName)
+          fi
+          if [ -z "$pr" ] || [ -z "$branch" ]; then echo "no PR to preview"; exit 0; fi
+          if [ -z "$AIUI_PREVIEW_PASS" ]; then
+            gh pr comment "$pr" --body "Preview skipped: set the repository secret \`AIUI_PREVIEW_PASSWORD\` (at least 16 characters), then comment \`/preview\`."
+            exit 0
+          fi
+          if ./bin/aiui preview "$branch" --repo "$REPO" --comment-file "$RUNNER_TEMP/preview.md"; then
+            gh pr comment "$pr" --body-file "$RUNNER_TEMP/preview.md"
+          else
+            gh pr comment "$pr" --body "❌ Preview failed. Logs: $RUN_URL"
+            exit 1
+          fi
