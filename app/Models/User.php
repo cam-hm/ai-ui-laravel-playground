@@ -35,6 +35,12 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
+    /** @return HasMany<Recipe, $this> */
+    public function recipes(): HasMany
+    {
+        return $this->hasMany(Recipe::class);
+    }
+
     /** @return HasMany<MealPlan, $this> */
     public function mealPlans(): HasMany
     {
