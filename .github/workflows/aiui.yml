@@ -5,17 +5,19 @@
 # provisions a Docker Cloud sandbox where the agent works and opens a draft PR. Results go back to the
 # issue as a comment and a label (aiui:done / aiui:failed). The Mac is not involved.
 #
-# Previews: after opening the PR, the job starts a preview of it (the app on a public HTTPS URL behind
-# HTTP Basic auth, deleted after its TTL, 2 h by default) and comments the URL on the PR. Commenting
-# `/preview` on a PR (owner, members, collaborators only) starts a new one. The Basic auth password is the
-# AIUI_PREVIEW_PASSWORD secret, so the URL can be posted without it; without that secret no preview starts.
+# Previews: after opening the PR, the job starts a preview of it (the app on a public HTTPS URL, deleted
+# after its TTL, 2 h by default) and comments the URL on the PR. Commenting `/preview` on a PR (owner,
+# members, collaborators only) starts a new one. By default the URL is behind HTTP Basic auth whose
+# password is the AIUI_PREVIEW_PASSWORD secret, so the URL can be posted without it; a repo whose previews
+# hold only demo data may turn that off with "preview": {"auth": false} in .aiui.json.
 #
 # Required in the target repo:
 #   secret   DOCKER_PAT                Docker personal access token (read-only is enough for sbx login)
 #   variable DOCKER_USER               Docker ID that owns the token
 #   secret   AIUI_HARNESS_DEPLOY_KEY   private half of a read-only deploy key on the harness repo
 # Optional:
-#   secret   AIUI_PREVIEW_PASSWORD     Basic auth password for previews (at least 16 characters)
+#   secret   AIUI_PREVIEW_PASSWORD     Basic auth password for previews (at least 16 characters); needed
+#                                      unless .aiui.json sets "preview": {"auth": false}
 # The Anthropic key stays in the Docker Cloud secret store (`sbx --cloud secret set anthropic`) and never
 # passes through this workflow. The sandbox has no GitHub access: this job ships the repo into it as a
 # git bundle, then verifies the agent's result (branch, base, no .github/ or .aiui.json changes), pushes the
@@ -160,13 +162,11 @@ jobs:
             branch=$(gh pr view "$ISSUE" -R "$REPO" --json headRefName -q .headRefName)
           fi
           if [ -z "$pr" ] || [ -z "$branch" ]; then echo "no PR to preview"; exit 0; fi
-          if [ -z "$AIUI_PREVIEW_PASS" ]; then
-            gh pr comment "$pr" --body "Preview skipped: set the repository secret \`AIUI_PREVIEW_PASSWORD\` (at least 16 characters), then comment \`/preview\`."
-            exit 0
-          fi
-          if ./bin/aiui preview "$branch" --repo "$REPO" --comment-file "$RUNNER_TEMP/preview.md"; then
+          # The harness decides whether this project's previews need the password (.aiui.json preview.auth).
+          if ./bin/aiui preview "$branch" --repo "$REPO" --comment-file "$RUNNER_TEMP/preview.md" 2>&1 | tee "$RUNNER_TEMP/preview.log"; then
             gh pr comment "$pr" --body-file "$RUNNER_TEMP/preview.md"
           else
-            gh pr comment "$pr" --body "❌ Preview failed. Logs: $RUN_URL"
+            reason=$(grep -m1 '✗' "$RUNNER_TEMP/preview.log" | sed 's/^ *✗ *//' | cut -c1-300)
+            gh pr comment "$pr" --body "❌ Preview failed: ${reason:-see the logs}. Logs: $RUN_URL"
             exit 1
           fi
